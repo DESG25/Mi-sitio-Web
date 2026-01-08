@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Calificaciones por RA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+    <div id="app" class="max-w-[95%] mx-auto p-4 md:p-8">
+        <!-- Encabezado -->
+        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800 tracking-tight">Panel del Maestro</h1>
+                <p class="text-slate-500">Gestión de Materias, Estudiantes y Calificaciones por RA</p>
+            </div>
+            <button onclick="showModal('subjectModal')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-indigo-200 flex items-center gap-2">
+                <span>+ Nueva Materia</span>
+            </button>
+        </header>
+
+        <!-- Lista de Materias -->
+        <div id="subjectsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Las materias se cargarán aquí -->
+        </div>
+
+        <!-- Vista Detallada de la Materia -->
+        <div id="subjectView" class="hidden animate-in fade-in duration-500">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <button onclick="backToSubjects()" class="text-indigo-600 font-medium flex items-center gap-1 hover:underline">
+                    ← Volver a materias
+                </button>
+                <div class="flex gap-2 w-full md:w-auto">
+                    <button onclick="showModal('studentModal')" class="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                        <span>+ Gestionar Estudiantes</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="subjectContent" class="space-y-8">
+                <!-- Se renderiza dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nueva Materia -->
+    <div id="subjectModal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h2 class="text-xl font-bold mb-4">Configurar Nueva Materia</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">Nombre de la Materia</label>
+                    <input type="text" id="subjectName" placeholder="Ej. Matemáticas" class="w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">Cantidad de RA</label>
+                    <input type="number" id="raCount" min="1" value="1" class="w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div class="flex gap-2 pt-4">
+                    <button onclick="closeModal('subjectModal')" class="flex-1 px-4 py-2 border rounded-lg hover:bg-slate-50">Cancelar</button>
+                    <button onclick="saveSubject()" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">Crear Materia</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Gestionar Estudiantes -->
+    <div id="studentModal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+            <h2 class="text-xl font-bold mb-2">Gestionar Estudiantes</h2>
+            <p class="text-sm text-slate-500 mb-4">Pega una lista de nombres desde Excel o Word (uno por línea).</p>
+            <div class="space-y-4">
+                <textarea id="studentPasteArea" rows="10" placeholder="Juan Perez&#10;Maria Lopez&#10;Carlos Ruiz..." 
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm"></textarea>
+                <div class="flex gap-2">
+                    <button onclick="closeModal('studentModal')" class="flex-1 px-4 py-2 border rounded-lg hover:bg-slate-50">Cerrar</button>
+                    <button onclick="saveStudents()" class="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700">Actualizar Lista</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Estado Global ---
+        let subjects = JSON.parse(localStorage.getItem('docente_v2_data')) || [];
+        let currentSubIndex = null;
+
+        // --- Utilidades de Interfaz ---
+        function showModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            if(id === 'studentModal' && currentSubIndex !== null) {
+                const names = subjects[currentSubIndex].students.map(s => s.name).join('\n');
+                document.getElementById('studentPasteArea').value = names;
+            }
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById(id).classList.remove('flex');
+        }
+
+        function backToSubjects() {
+            document.getElementById('subjectView').classList.add('hidden');
+            document.getElementById('subjectsList').classList.remove('hidden');
+            currentSubIndex = null;
+            renderSubjects();
+        }
+
+        // --- Lógica de Materias ---
+        function saveSubject() {
+            const name = document.getElementById('subjectName').value;
+            const raCount = parseInt(document.getElementById('raCount').value);
+
+            if (!name || raCount < 1) return;
+
+            const newSub = {
+                id: Date.now(),
+                name: name,
+                students: [], // Lista de estudiantes { id, name, grades: { raId: { critIdx: score } } }
+                results: Array.from({ length: raCount }, (_, i) => ({
+                    id: i,
+                    title: `Resultado de Aprendizaje ${i + 1}`,
+                    weight: (100 / raCount).toFixed(0),
+                    criteria: [{ name: "Criterio 1" }]
+                }))
+            };
+
+            subjects.push(newSub);
+            syncStorage();
+            closeModal('subjectModal');
+            renderSubjects();
+            document.getElementById('subjectName').value = "";
+        }
+
+        function deleteSubject(idx) {
+            if(confirm("¿Eliminar materia?")) {
+                subjects.splice(idx, 1);
+                syncStorage();
+                renderSubjects();
+            }
+        }
+
+        // --- Lógica de Estudiantes ---
+        function saveStudents() {
+            const area = document.getElementById('studentPasteArea');
+            const names = area.value.split('\n').map(n => n.trim()).filter(n => n !== "");
+            
+            const currentSub = subjects[currentSubIndex];
+            
+            // Reconstruir lista de estudiantes manteniendo notas si ya existían
+            const newStudentsList = names.map(name => {
+                const existing = currentSub.students.find(s => s.name === name);
+                return existing ? existing : { id: Math.random().toString(36).substr(2, 9), name: name, grades: {} };
+            });
+
+            currentSub.students = newStudentsList;
+            syncStorage();
+            closeModal('studentModal');
+            renderSubjectDetails();
+        }
+
+        function updateGrade(studentId, raId, critIdx, value) {
+            const student = subjects[currentSubIndex].students.find(s => s.id === studentId);
+            if (!student.grades[raId]) student.grades[raId] = {};
+            student.grades[raId][critIdx] = parseFloat(value) || 0;
+            syncStorage();
+            // Solo renderizamos los totales para no perder el foco del input
+            calculateRowTotal(studentId, raId);
+        }
+
+        function calculateRowTotal(studentId, raId) {
+            const sub = subjects[currentSubIndex];
+            const ra = sub.results[raId];
+            const student = sub.students.find(s => s.id === studentId);
+            
+            let sum100 = 0;
+            ra.criteria.forEach((_, idx) => {
+                sum100 += (student.grades[raId] && student.grades[raId][idx]) ? student.grades[raId][idx] : 0;
+            });
+
+            const finalVal = (sum100 * ra.weight) / 100;
+            
+            document.getElementById(`sum-${studentId}-${raId}`).innerText = sum100;
+            document.getElementById(`final-${studentId}-${raId}`).innerText = finalVal.toFixed(2);
+        }
+
+        // --- Renderizado ---
+        function renderSubjects() {
+            const list = document.getElementById('subjectsList');
+            list.innerHTML = subjects.map((s, i) => `
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
+                    <div onclick="viewSubject(${i})">
+                        <h3 class="text-xl font-bold text-slate-800">${s.name}</h3>
+                        <p class="text-sm text-slate-500">${s.results.length} RA | ${s.students.length} Estudiantes</p>
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                        <button onclick="viewSubject(${i})" class="text-sm bg-indigo-50 text-indigo-600 px-3 py-1 rounded-md font-medium hover:bg-indigo-100">Abrir</button>
+                        <button onclick="deleteSubject(${i})" class="text-sm text-red-400 hover:text-red-600 ml-auto">Eliminar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function viewSubject(idx) {
+            currentSubIndex = idx;
+            document.getElementById('subjectsList').classList.add('hidden');
+            document.getElementById('subjectView').classList.remove('hidden');
+            renderSubjectDetails();
+        }
+
+        function renderSubjectDetails() {
+            const sub = subjects[currentSubIndex];
+            const container = document.getElementById('subjectContent');
+            
+            if (sub.students.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                        <p class="text-slate-500 mb-4">No hay estudiantes en esta materia.</p>
+                        <button onclick="showModal('studentModal')" class="bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium">Agregar Estudiantes</button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = sub.results.map((ra, raId) => {
+                return `
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row justify-between gap-4">
+                        <div class="flex-1">
+                            <input type="text" value="${ra.title}" onchange="updateRA(${raId}, 'title', this.value)" 
+                                class="bg-transparent font-bold text-lg text-slate-800 border-b border-transparent hover:border-slate-300 outline-none w-full">
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-bold text-slate-500 uppercase">Valor del RA:</span>
+                            <input type="number" value="${ra.weight}" onchange="updateRA(${raId}, 'weight', this.value)"
+                                class="w-16 px-2 py-1 border rounded font-bold text-indigo-600 text-center">
+                            <span class="text-xs font-bold text-slate-500">%</span>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto no-scrollbar">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-slate-50/50 text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                                    <th class="py-3 px-4 text-left min-w-[200px]">Estudiante</th>
+                                    ${ra.criteria.map((c, cIdx) => `
+                                        <th class="py-3 px-2 text-center min-w-[120px]">
+                                            <div class="flex flex-col items-center gap-1">
+                                                <input type="text" value="${c.name}" onchange="updateCritName(${raId}, ${cIdx}, this.value)"
+                                                    class="bg-transparent text-center border-none focus:ring-0 w-full hover:bg-slate-200 rounded">
+                                                <button onclick="removeCrit(${raId}, ${cIdx})" class="text-[8px] text-red-300 hover:text-red-500">Eliminar</button>
+                                            </div>
+                                        </th>
+                                    `).join('')}
+                                    <th class="py-3 px-2 text-center bg-indigo-50 text-indigo-600 min-w-[80px]">Total /100</th>
+                                    <th class="py-3 px-2 text-center bg-indigo-600 text-white min-w-[80px]">Final RA</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${sub.students.map(student => {
+                                    const studentGrades = student.grades[raId] || {};
+                                    let sum100 = 0;
+                                    ra.criteria.forEach((_, idx) => sum100 += studentGrades[idx] || 0);
+                                    const finalVal = (sum100 * ra.weight) / 100;
+
+                                    return `
+                                    <tr class="hover:bg-slate-50/50 transition-colors">
+                                        <td class="py-3 px-4 font-medium text-slate-700">${student.name}</td>
+                                        ${ra.criteria.map((_, cIdx) => `
+                                            <td class="py-2 px-2 text-center">
+                                                <input type="number" value="${studentGrades[cIdx] || 0}" min="0" max="100"
+                                                    oninput="updateGrade('${student.id}', ${raId}, ${cIdx}, this.value)"
+                                                    class="w-full text-center py-1 border rounded hover:border-indigo-300 focus:border-indigo-500 outline-none">
+                                            </td>
+                                        `).join('')}
+                                        <td class="py-2 px-2 text-center font-bold bg-indigo-50/30 text-slate-600" id="sum-${student.id}-${raId}">${sum100}</td>
+                                        <td class="py-2 px-2 text-center font-black bg-indigo-600/10 text-indigo-700" id="final-${student.id}-${raId}">${finalVal.toFixed(2)}</td>
+                                    </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-slate-50/50 border-t border-slate-100">
+                        <button onclick="addCrit(${raId})" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                            + Agregar Criterio a este RA
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // --- Operaciones de RA y Criterios ---
+        function updateRA(raId, field, value) {
+            subjects[currentSubIndex].results[raId][field] = value;
+            syncStorage();
+            renderSubjectDetails();
+        }
+
+        function updateCritName(raId, cIdx, value) {
+            subjects[currentSubIndex].results[raId].criteria[cIdx].name = value;
+            syncStorage();
+        }
+
+        function addCrit(raId) {
+            subjects[currentSubIndex].results[raId].criteria.push({ name: `Criterio ${subjects[currentSubIndex].results[raId].criteria.length + 1}` });
+            syncStorage();
+            renderSubjectDetails();
+        }
+
+        function removeCrit(raId, cIdx) {
+            if(subjects[currentSubIndex].results[raId].criteria.length > 1) {
+                subjects[currentSubIndex].results[raId].criteria.splice(cIdx, 1);
+                syncStorage();
+                renderSubjectDetails();
+            }
+        }
+
+        function syncStorage() {
+            localStorage.setItem('docente_v2_data', JSON.stringify(subjects));
+        }
+
+        // Inicialización
+        renderSubjects();
+
+    </script>
+</body>
+</html>
